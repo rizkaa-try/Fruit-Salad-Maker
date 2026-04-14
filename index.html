@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fruit Salad Maker 🥗</title>
+    <style>
+        body, html { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; touch-action: none; }
+        
+        /* Container utama game */
+        #gameArea { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+
+        /* Background Motif Taplak */
+        #bg { 
+            position: absolute; inset: 0; z-index: -2; background: #fff;
+            background-image: linear-gradient(45deg, #fce 25%, transparent 25%, transparent 75%, #fce 75%), linear-gradient(45deg, #fce 25%, transparent 25%, transparent 75%, #fce 75%);
+            background-size: 60px 60px; background-position: 0 0, 30px 30px;
+        }
+
+        /* EFEK JJ DISCO (Flash + Zoom) */
+        .jj-disco { animation: jjFlash 0.3s ease-in-out; }
+        @keyframes jjFlash { 
+            0% { filter: brightness(2) saturate(2); transform: scale(1.03); background-color: #ff0055; }
+            50% { background-color: #00ffcc; }
+            100% { filter: none; transform: scale(1); background-color: #fff; }
+        }
+
+        /* UI & Overlay */
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 100; text-align: center; }
+        #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: #f05; font-size: 28px; font-weight: bold; text-shadow: 2px 2px #fff; z-index: 10; pointer-events: none; }
+        .m-btn { padding: 15px 40px; font-size: 22px; background: linear-gradient(to right, #f05, #ffcc00); color: #fff; border: none; border-radius: 50px; cursor: pointer; margin-top: 20px; font-weight: bold; box-shadow: 0 5px 15px rgba(255,0,85,0.3); }
+
+        /* ENDING SALAD (🥗 Raksasa) */
+        #saladEnding { 
+            position: fixed; inset: 0; background: #fff; display: none; 
+            flex-direction: column; align-items: center; justify-content: center; z-index: 50; 
+            animation: saladPop 0.5s ease-out;
+        }
+        #saladEmoji { font-size: 200px; margin-bottom: 20px; }
+        #saladText { color: #2ecc71; font-size: 40px; text-shadow: 2px 2px #000; }
+        
+        @keyframes saladPop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body>
+    
+    <div id="gameArea">
+        <div id="bg"></div>
+        <div id="ui">SCORE: <span id="s">0</span> / 50</div>
+        
+        <div id="start" class="overlay">
+            <h1 style="color:#f05; font-size: 45px; margin-bottom: 10px;">FRUIT SALAD</h1>
+            <p>Catch 50 fruits to make the perfect salad!<br>Watch out for 💣 and enjoy the Disco JJ!</p>
+            <button class="m-btn" onclick="init()">START MIXING! 🧺</button>
+        </div>
+
+        <div id="jumpscare" style="position:fixed; inset:0; background:#000; display:none; z-index:999; justify-content:center; align-items:center;">
+            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS85p8FfS4X5E-wXGZzS80x9XU9fLp0kYV_dg&s" style="width:100%; height:100%; object-fit:cover;">
+        </div>
+
+        <div id="saladEnding">
+            <div id="saladEmoji">🥗</div>
+            <div id="saladText">IT'S SALAD TIME! 🤩</div>
+            <p style="color:#333; margin-top:10px;">Delicious!</p>
+            <button class="m-btn" onclick="init()">MAKE ANOTHER? 🥣</button>
+        </div>
+        
+        <canvas id="c"></canvas>
+    </div>
+
+<script>
+    const cvs = document.getElementById('c'), ctx = cvs.getContext('2d');
+    const jump = document.getElementById('jumpscare'), salad = document.getElementById('saladEnding');
+    const scm = new Audio('https://www.soundboard.com/handler/DownLoadTrack.ashx?cliptoken=8f455325-104c-471a-8280-571253013d54');
+    
+    let score, active = false, items, speed, bsk = {w:90, x:0};
+    const fruits = ["🍓","🍒","🍎","🍉","🍑","🍊","🍌","🍍","🍇","🥝","🥥"];
+
+    function resize() { cvs.width = innerWidth; cvs.height = innerHeight; bsk.x = cvs.width/2 - 45; }
+    window.onresize = resize; resize();
+
+    const move = (e) => { if(active) bsk.x = (e.touches ? e.touches[0].clientX : e.clientX) - 45; };
+    window.ontouchmove = window.onmousemove = move;
+
+    function triggerJJ() {
+        cvs.classList.remove("jj-disco");
+        void cvs.offsetWidth; 
+        cvs.classList.add("jj-disco");
+        if (navigator.vibrate) navigator.vibrate([40, 30]);
+    }
+
+    function spawn() {
+        if(!active) return;
+        let isB = Math.random() < 0.25;
+        items.push({x: Math.random()*(cvs.width-50), y: -60, e: isB ? '💣' : fruits[Math.floor(Math.random()*fruits.length)], t: isB ? 1 : 0});
+        setTimeout(spawn, Math.max(180, 800 - score*8));
+    }
+
+    function loop() {
+        if(!active) return;
+        ctx.clearRect(0,0,cvs.width,cvs.height);
+        
+        // Keranjang Neon
+        ctx.shadowBlur = 15; ctx.shadowColor = "#f05";
+        ctx.font = "80px serif"; ctx.fillText("🧺", bsk.x, cvs.height-50); ctx.shadowBlur = 0;
+
+        items.forEach((it, i) => {
+            it.y += speed; ctx.fillText(it.e, it.x, it.y);
+            // Tabrakan
+            if(it.y > cvs.height-110 && it.x > bsk.x-40 && it.x < bsk.x+bsk.w) {
+                if(it.t) { // BOMB
+                    active=false; jump.style.display='flex'; scm.play(); setTimeout(()=>restart('BOOM! 💣'), 1200);
+                } else { // FRUIT
+                    score++; triggerJJ(); items.splice(i,1); speed+=0.05; 
+                    if(score>=50) triggerSaladWin(); // KONDISI MENANG SALAD
+                }
+            } else if(it.y > cvs.height) items.splice(i,1);
+        });
+        document.getElementById('s').innerText = score;
+        requestAnimationFrame(loop);
+    }
+
+    function triggerSaladWin() {
+        active = false;
+        if (navigator.vibrate) navigator.vibrate([100, 100, 100, 300]);
+        
+        // Sembunyikan semua elemen game
+        ctx.clearRect(0,0,cvs.width,cvs.height);
+        document.getElementById('ui').style.opacity = 0;
+        
+        // Tampilkan Salad Raksasa
+        salad.style.display = 'flex';
+    }
+
+    function restart(m) { active=false; jump.style.display='none'; document.getElementById('start').style.display='flex'; document.getElementById('start').querySelector('h1').innerText = m; }
+    function init() { document.getElementById('start').style.display='none'; salad.style.display='none'; document.getElementById('ui').style.opacity = 1; start(); }
+    function start() { score=0; speed=5; items=[]; active=true; spawn(); loop(); }
+</script>
+</body>
+</html>
